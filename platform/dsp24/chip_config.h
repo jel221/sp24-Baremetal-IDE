@@ -10,6 +10,9 @@ extern "C" {
 #include "spi.h"
 #include "i2c.h"
 #include "uart.h"
+#include "rocketcore.h"
+#include "hal_conv.h"
+#include "float16.h"
 
 
 // ================================

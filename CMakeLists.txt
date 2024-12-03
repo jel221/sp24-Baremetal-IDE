@@ -97,7 +97,7 @@ add_executable(app
 )
 
 target_include_directories(app PUBLIC app/include)
-
+target_include_directories(app PUBLIC app/audio)
 
 #################################
 # Dependencies

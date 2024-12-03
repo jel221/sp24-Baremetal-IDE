@@ -26,7 +26,7 @@ extern "C" {
 #define DMA_INC_READ        DMA_SET + 0x22
 #define DMA_INC_WRITE       DMA_SET + 0x24
 
-#define DMA_SET_D           DMA_SET + 0x2
+#define DMA_SET_D           DMA_SET + 0x28
 
 int DMA_count(int num);
 

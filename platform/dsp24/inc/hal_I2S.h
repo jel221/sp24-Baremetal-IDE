@@ -10,23 +10,24 @@ extern "C" {
 #include  "hal_mmio.h"
 #include "chip_config.h"
 
-#define I2S_BASE                    0x10042000U
-#define I2S_STATUS                  I2S_BASE + 0x08
+#define I2S_BASE                             0x10042000U
+#define I2S_CONFIG(channel)                  I2S_BASE + 0x2 * channel
+#define I2S_STATUS(channel)                  I2S_BASE + 0x08 + channel
 
-#define I2S_WATERMARK_RX_L          I2S_BASE + 0x102
-#define I2S_WATERMARK_RX_R          I2S_BASE + 0x103
-#define I2S_WATERMARK_TX_L          I2S_BASE + 0x100
-#define I2S_WATERMARK_TX_R          I2S_BASE + 0x101
+#define I2S_WATERMARK_RX_L(channel)          I2S_BASE + 0x102 + 0x4 * channel
+#define I2S_WATERMARK_RX_R(channel)          I2S_BASE + 0x103 + 0x4 * channel
+#define I2S_WATERMARK_TX_L(channel)          I2S_BASE + 0x100 + 0x4 * channel
+#define I2S_WATERMARK_TX_R(channel)          I2S_BASE + 0x101 + 0x4 * channel
 
-#define I2S_TX_WATERMARK            I2S_BASE + 0x0C
-#define I2S_RX_WATERMARK            I2S_BASE + 0x10
+#define I2S_TX_WATERMARK(channel)            I2S_BASE + 0x0C + channel
+#define I2S_RX_WATERMARK(channel)            I2S_BASE + 0x10 + channel
 
-#define I2S_CLKDIV                  I2S_BASE + 0x14
+#define I2S_CLKDIV(channel)                  I2S_BASE + 0x14 + 0x2 * channel
 
-#define I2S_TX_L                    I2S_BASE + 0x20
-#define I2S_TX_R                    I2S_BASE + 0x28
-#define I2S_RX_L                    I2S_BASE + 0x60
-#define I2S_RX_R                    I2S_BASE + 0x68
+#define I2S_TX_L(channel)                    I2S_BASE + 0x20 + 0x10 * channel
+#define I2S_TX_R(channel)                    I2S_BASE + 0x28 + 0x10 * channel
+#define I2S_RX_L(channel)                    I2S_BASE + 0x60 + 0x10 * channel
+#define I2S_RX_R(channel)                    I2S_BASE + 0x68 + 0x10 * channel
 
 //#define I2S_FP_MODE                 I2S_BASE + 0xB8
 

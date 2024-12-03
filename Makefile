@@ -12,7 +12,7 @@ PORT = 3333
 
 .PHONY: build
 dsp24:
-	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=dsp24
+	cmake -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=dsp24
 	cmake --build ./build/ --target app
 
 bearly24:
