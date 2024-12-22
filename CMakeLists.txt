@@ -94,10 +94,12 @@ add_link_options(-T ${LINKER_SCRIPT})
 
 add_executable(app
   app/src/main.c
+  app/include/util.c
 )
 
 target_include_directories(app PUBLIC app/include)
 target_include_directories(app PUBLIC app/audio)
+
 
 #################################
 # Dependencies

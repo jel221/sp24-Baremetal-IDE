@@ -17,48 +17,9 @@
 #include "main.h"
 #include "chip_config.h"
 #include <inttypes.h>
-
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
-
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN PUC */
-
+#include "util.h"
 
 /*
-110 0001 1011
-110 0001 1011
-    1111 0011
-
 | 15-14 |   13   |   12   |    11    |    10    |
   RSVD    RX_FL     TX_FL   RX_USE_F   TX_USE_F   
 |  9-8  |  7-6  |   5-4   |    3    |   2   |   1   |
@@ -68,8 +29,22 @@
 #define CHANNEL 0
 #include "btstory.h"
 uint64_t* audio = (uint64_t*) story_bearly_wav;
-#define AUDIO_LEN STORY_BEARLY_WAVE_LEN
 
+I2S_PARAMS I2S_DEFAULT = {
+    .channel     = 0,
+    .tx_en       = 1,
+    .rx_en       = 1,
+    .bitdepth_tx = 3,
+    .bitdepth_rx = 3,
+    .clkgen      = 1,
+    .dacen       = 0,
+    .ws_len      = 3,
+    .clkdiv      = 7,
+    .tx_fp       = 0,
+    .rx_fp       = 0,
+    .tx_force_left = 0,
+    .rx_force_left = 0
+};
 
 uint16_t kernel[8] = {
   0x0000, 0x3C00, 0x0000, 0x3C00, 0x0000, 0x3C00, 0x0000, 0x3C00
@@ -80,26 +55,17 @@ void app_init() {
 
   printf("(BEGIN) On hart: %d", mhartid);
 
-  set_I2S_params(CHANNEL, true, true, 3, 3, true, 0, 2);
-  set_I2S_en(0, true, true);
-  set_I2S_clkdiv(CHANNEL, 7); // hardcoded
+  //set_I2S_params(CHANNEL, true, true, 3, 3, true, 0, 2);
+  //set_I2S_en(0, true, true);
+  //set_I2S_clkdiv(CHANNEL, 7);
+
+  printf("I2S params initializing");
+
+  set_I2S_params(&I2S_DEFAULT);
 
   printf("Init done");
 }
 
-double compute_pi(int iterations) {
-    double pi = 0.0;
-    int sign = 1;
-
-    for (long long i = 0; i < iterations; i++) {
-        pi += sign * (1.0 / (2 * i + 1));
-        sign = -sign;
-    }
-
-    pi *= 4;
-
-    return pi;
-}
 
 void compare_dma() {
   printf("(TEST 1) Normal start");
@@ -146,147 +112,6 @@ void compare_dma() {
   printf("DMA cycle count: %d", accel_end - accel_start);
   //printf("DEBUG: pi %f", pi);
 }
-/* USER CODE END PUC */
-
-void software_conv(int8_t *arr, size_t arr_len, short* kernel, size_t kernel_len, size_t dilation, short* output) {
-  for (int i = 0; i < arr_len; i += 1) {
-    
-    output[i] = 0;
-    for (int j = 0; j < kernel_len; j += 1) {
-      int arr_index = i + j * dilation;
-      int8_t item;
-      if (arr_index >= arr_len) {
-        item = 0;
-      } else {
-        item = arr[arr_index];
-      }
-      output[i] = f16_add(output[i], f16_mul(f16_from_int((int32_t)item), kernel[j]));
-    }
-  }
-}
-
-
-void compare_conv() {
-  printf("(TEST 2) Normal start");
-  uint64_t normal_start = get_cycles();
-  
-  uint16_t output_a[AUDIO_LEN];
-
-  software_conv((int8_t*) audio, AUDIO_LEN, kernel, 8, 1, output_a);
-
-  uint64_t normal_end = get_cycles();
-
-  printf("(TEST 2) Normal end");
-  printf("Normal cycle count: %d", normal_end - normal_start);
-
-  printf("(TEST 2) Conv start");
-  uint64_t accel_start = get_cycles();
-
-  uint16_t output_b[AUDIO_LEN];
-  
-  reg_write64(CONV_BASE, audio);
-  set_conv_params(120, 1, kernel);
-  //write_conv_dma(1, 120, audio);
-  start_conv();
-  asm volatile("fence");
-
-  uint64_t* output_b_long = (uint64_t*) output_b;
-  
-  for (int i = 0; i < AUDIO_LEN / 4; i++) {
-    uint64_t temp = reg_read64(CONV_OUTPUT_ADDR);
-    output_b_long[i] = temp;
-  }
-  
-  uint64_t accel_end = get_cycles();
-
-  // This is causing program to hang. WTF? printf("(TEST 2) Conv end");
-  printf("Conv cycle count: %d", accel_end - accel_start);
-
-  printf("(TEST 2) Verifying output");
-
-  for (int i = 0; i < AUDIO_LEN; i++) {
-    if (output_a[i] != output_b[i]) {
-        printf("Expected %x, got %x", output_a[i], output_b[i]);
-    }
-  }
-
-  printf("(TEST 2) Verifying output end");
-}
-
-// #define BASE_ADDR 0x08800000
-// 
-// #define INPUT_ADDR      0x08800000
-// #define OUTPUT_ADDR     0x08800020
-// #define KERNEL_ADDR     0x08800040
-// #define STATUS_ADDR      0x0880006C
-// #define START_ADDR      0x0880006C
-// #define CLEAR_ADDR      0x0880006D
-// #define LENGTH_ADDR     0x08800078
-// #define DILATION_ADDR   0x0880007C
-// #define DEQ_ADDR    0x0880008D
-// #define ISFLOAT_ADDR    0x0880008E
-
-//void simple_test() {
-//    int8_t in_arr[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-//    uint32_t in_len[1] = {16};
-//    uint16_t in_dilation[1] = {1};
-//    uint16_t in_kernel[8] = {0x4000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16                                    
-//
-//    reg_write8(CLEAR_ADDR, 1);
-//    asm volatile("fence");
-//    reg_write8(CLEAR_ADDR, 0);
-//    printf("Test setup: ");
-//    reg_write64(INPUT_ADDR, *((uint64_t*) (in_arr)));
-//    //reg_write64(INPUT_ADDR, *((uint64_t*) (in_arr + 8)));
-//
-//    reg_write32(LENGTH_ADDR, 16);
-//    reg_write16(DILATION_ADDR, in_dilation[0]);
-//    reg_write8(ISFLOAT_ADDR, 0);
-//    
-//    reg_write64(KERNEL_ADDR, *((uint64_t*) in_kernel));         // 64 bits: 4 FP16s
-//    //reg_write64(KERNEL_ADDR, *((uint64_t*) (in_kernel + 4)));   // 64 bits: 4 FP16s (Total 8)
-//
-//    asm volatile("fence");
-//    printf("Starting: ");
-//    reg_write8(START_ADDR, 1);
-//
-//    
-//    printf("Input (INT8): ");
-//    for (int i = 0; i < 16; i++) {
-//        printf("%d ", in_arr[i]);
-//    }
-//    uint8_t stat = reg_read8(STATUS_ADDR);
-//    while (stat & 0x80) {
-//        asm volatile("nop");
-//        stat = reg_read8(STATUS_ADDR);
-//    }
-//    uint16_t test_out[32];
-//    printf("Test Output (FP16 binary): ");
-//    for (int i = 0; i < 4; i++) {
-//        uint64_t current_out = reg_read64(OUTPUT_ADDR);
-//        uint16_t* unpacked_out = (uint16_t*) &current_out;
-//        for (int j = 0; j < 4; j++) {
-//            test_out[i*4 + j] = unpacked_out[j];
-//        }
-//    }
-//
-//    uint16_t ref_out[32];
-//    for (int i = 0; i < 16; i++) {
-//        ref_out[i] = f16_from_int((int32_t) (in_arr[i] * 2));
-//    }
-//    printf("Reference Output (FP16 binary): ");
-//    for (int i = 0; i < 16; i++) {
-//        printf("%#x ", ref_out[i]);
-//    }
-//    printf("");
-//
-//    if (memcmp(test_out, ref_out, 16) == 0) {
-//        printf("[TEST PASSED]: Test Output matches Reference Output.");
-//    } else {
-//        printf("[TEST FAILED]: Test Output does not match Reference Output.");
-//    }
-//    printf("");
-//}
 
 #define INPUT_ADDR      0x08800000
 #define OUTPUT_ADDR     0x08800020
@@ -299,7 +124,59 @@ void compare_conv() {
 
 void app_main() {
 
-    printf("\rStarting test");
+    printf("\r\nStarting test");
+    reg_write8(RESET_ADDR, 1);
+
+    // https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/wikis/digital/dsp24/Programming-Interfaces#convolution-accelerator
+    // reg_write8(INPUT_TYPE_ADDR, 0);
+    uint8_t* in_arr = (uint8_t*) audio;
+    uint32_t in_len[1] = {story_bearly_wav_len};
+    uint16_t in_dilation[1] = {1};
+    uint16_t in_kernel[8] = {0x3000, 0x3000, 0x3000, 0x3000, 0x3000, 0x3000, 0x3000, 0x3000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16              
+
+    printf("\r\nSetting values of MMIO registers");
+    set_conv_params(story_bearly_wav_len, 1, ((uint64_t*) in_kernel));                  
+    write_conv_dma(0, story_bearly_wav_len / 4, in_arr);
+
+    uint64_t cpu_start_cycles = READ_CSR("mcycle");
+    //printf("\r\nStarting Convolution");
+    asm volatile ("fence");
+    start_conv();
+
+    uint64_t cpu_end_cycles = READ_CSR("mcycle");
+
+    asm volatile ("fence");
+
+    //printf("\r\nWaiting for convolution to complete");
+    
+    //printf("\r\nInput (INT8): ");
+    //for (int i = 0; i < story_bearly_wav_len; i++) {
+    //    printf("%u ", in_arr[i]);
+    //}
+
+    uint16_t test_out[story_bearly_wav_len];
+    read_conv_dma(1, story_bearly_wav_len / 8, ((uint64_t*) test_out));
+    //printf("\r\nTest Output (INT8): ");
+    asm volatile ("fence");
+
+    uint8_t true_out[story_bearly_wav_len];
+
+    asm volatile ("fence");
+    for (int i = 0; i < story_bearly_wav_len / 8; i++) {
+        uint8_t out = (uint8_t) f16_int(test_out[i]);
+        true_out[i] = out;
+    }
+
+    for (int i = 0; i < story_bearly_wav_len / 8; i++) {
+        printf("%d ", true_out[i]);
+    }
+    
+    fflush(stdout);
+}
+
+void app_main_test() {
+
+    printf("\r\nStarting test");
     reg_write8(RESET_ADDR, 1);
 
     // https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/wikis/digital/dsp24/Programming-Interfaces#convolution-accelerator
@@ -309,12 +186,12 @@ void app_main() {
     uint16_t in_dilation[1] = {1};
     uint16_t in_kernel[8] = {0x4000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16              
 
-    printf("\rSetting values of MMIO registers");
+    printf("\r\nSetting values of MMIO registers");
     set_conv_params(16, 1, ((uint64_t*) in_kernel));                  
     write_conv_dma(0, 16, in_arr);
 
     uint64_t cpu_start_cycles = READ_CSR("mcycle");
-    printf("\rStarting Convolution");
+    printf("\r\nStarting Convolution");
     asm volatile ("fence");
     start_conv();
 
@@ -322,16 +199,16 @@ void app_main() {
 
     asm volatile ("fence");
 
-    printf("\rWaiting for convolution to complete");
+    printf("\r\nWaiting for convolution to complete");
     
-    printf("\rInput (INT8): ");
+    printf("\r\nInput (INT8): ");
     for (int i = 0; i < 16; i++) {
         printf("%d ", in_arr[i]);
     }
 
     uint16_t test_out[32];
     read_conv_dma(0, 16, ((uint64_t*) test_out));
-    printf("\rTest Output (FP16 binary): ");
+    printf("\r\nTest Output (FP16 binary): ");
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             printf("0x%"PRIx64" ", test_out[i*4 + j]);
@@ -342,43 +219,190 @@ void app_main() {
     for (int i = 0; i < 16; i++) {
         ref_out[i] = f16_from_int((int32_t) (in_arr[i] * 2));
     }
-    printf("\rReference Output (FP16 binary): ");
+    printf("\r\nReference Output (FP16 binary): ");
     for (int i = 0; i < 16; i++) {
         printf("%#x ", ref_out[i]);
     }
-    printf("\r");
+    printf("\r\n");
 
     if (memcmp(test_out, ref_out, 16) == 0) {
-        printf("\r[TEST PASSED]: Test Output matches Reference Output.");
-        printf("\rmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
+        printf("\r\n[TEST PASSED]: Test Output matches Reference Output.");
+        printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
     } else {
-        printf("\r[TEST FAILED]: Test Output does not match Reference Output.");
-        printf("\rmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
+        printf("\r\n[TEST FAILED]: Test Output does not match Reference Output.");
+        printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
     }
-    printf("\r\r");
+    printf("\r\n\r\n");
 
 }
 
-volatile uint8_t* i2s_config = (uint8_t*) 0x10042000;
+void conv_acc(uint8_t *input_audio, size_t audio_len, uint16_t *input_kernel, size_t kernel_len, size_t dilation, uint16_t *output_audio);
+
+void conv_test() {
+  size_t audio_len = story_bearly_wav_len;
+  size_t kernel_len = 8;
+  size_t dilation = 1;
+
+  uint8_t* input_audio_ = audio;
+  for (int i = 0; i < audio_len; i++) {
+    input_audio_[i] = input_audio_[i] / 2;
+  }
+
+  uint16_t output_audio_cpu[16];
+  uint16_t output_audio_acc[16];
+  uint16_t input_kernel[8] = {0x3000, 0x3000, 0x3000, 0x3000, 0x3000, 0x3000, 0x3000, 0x3000};
+
+  uint8_t* input_audio;
+  for (int stride = 0; stride < audio_len; stride += 16) {
+    input_audio = input_audio_ + stride;
+
+    software_conv(input_audio, 16, input_kernel, kernel_len, dilation, output_audio_cpu);
+    conv_acc(input_audio, 16, input_kernel, kernel_len, dilation, output_audio_acc);
+
+  // for(int i = 0; i < audio_len; i++) {
+  //   if(output_audio_cpu[i] != output_audio_acc[i]) {
+  //     printf("\r\nmismatch at index %d\r\n", i);
+  //   }
+  // }
+
+  // printf("\r\nFinished");
+  // printf("\r\noutput_audio_acc:\r\n");
+  // for(int i = 0; i < audio_len; i++) {
+  //   printf("0x%x - %d\r\n", output_audio_acc[i], f16_int(output_audio_acc[i]));
+  // }
+    for(int i = 0; i < 16; i++) {
+        printf("%d ", f16_int(output_audio_acc[i]));
+    }
+    printf("\r\n");
+  }
+}
+
+void conv_acc(uint8_t *input_audio, size_t audio_len, uint16_t *input_kernel, size_t kernel_len, size_t dilation, uint16_t *output_audio) {
+  reg_write64(CONV_BASE, *((uint64_t*) (input_audio)));
+  reg_write64(CONV_BASE, *((uint64_t*) (input_audio + 8)));
+  set_conv_params(audio_len >= 16 ? 16 : audio_len, dilation, input_kernel);
+  start_conv();
+  asm volatile("fence");
+
+  for (int i = 0; i < 4; i++) {
+    uint64_t current_out = reg_read64(CONV_OUTPUT_ADDR);
+    uint16_t* unpacked_out = (uint16_t*) &current_out;
+    for (int j = 0; j < 4; j++) {
+      output_audio[i*4 + j] = unpacked_out[j];
+    }
+  }
+
+  reg_write8(CONV_START_ADDR, 0);
+  reg_write8(RESET_ADDR, 1);
+  asm volatile("fence");
+
+  uint64_t start_index = 1;
+  for(uint64_t i = 9; i < audio_len - 2 * kernel_len; i++) {
+
+    uint8_t input_audio_temp[16];
+    for(int j = 0; j < 16; j++) {
+      input_audio_temp[j] = input_audio[start_index + j];
+    }
+
+    reg_write64(CONV_BASE, *((uint64_t*) (input_audio_temp)));
+    reg_write64(CONV_BASE, *((uint64_t*) (input_audio_temp + 8)));
+    set_conv_params(16, dilation, input_kernel);
+    start_conv();
+    asm volatile("fence");
+
+    // uint64_t current_out = reg_read64(CONV_OUTPUT_ADDR);
+    // uint16_t* unpacked_out = (uint16_t*) &current_out;
+    // output_audio[i] = unpacked_out[8];
+
+    uint16_t output_audio_temp[16];
+    for (int x = 0; x < 4; x++) {
+      uint64_t current_out = reg_read64(CONV_OUTPUT_ADDR);
+      uint16_t* unpacked_out = (uint16_t*) &current_out;
+      for (int y = 0; y < 4; y++) {
+        output_audio_temp[x*4 + y] = unpacked_out[y];
+      }
+    }
+
+    output_audio[i] = output_audio_temp[8];
+      
+    reg_write8(CONV_START_ADDR, 0);
+    reg_write8(RESET_ADDR, 1);
+    asm volatile("fence");
+
+    start_index += 1;
+  }
+}
+
+volatile uint16_t* i2s_config = (uint16_t*) 0x10042000;
 volatile uint16_t* i2s_clkdiv = (uint16_t*) 0x10042014;
 volatile uint64_t* i2s_lenqueue = (uint64_t*) 0x10042020;
+volatile uint64_t* i2s_renqueue = (uint64_t*) 0x10042028;
+volatile uint8_t* i2s_status = (uint8_t*) 0x10042008;
 
-void rando(void)
+void manual_setting_test(void)
 {
-	size_t counter = 0;
-	volatile size_t test;
-	printf("Done uploading!\r\n");
-	printf("Doing something else now!\r\n");
 	*i2s_clkdiv = 7;
-	printf("Set clock div!\r\n");
-	*i2s_config = 243;
-	printf("Done uploading, about to play!\r\n");
+    asm volatile("fence");
+	*i2s_config = 0x00F3;
+    asm volatile("fence");
 
-	for (counter = 0; counter < 32; counter++) {
-		*i2s_lenqueue = audio[counter];
+	for (int i = 0; i < story_bearly_wav_len; i++) {
+		*i2s_lenqueue = audio[i];
+        //while ((*i2s_status) & 0b10) {
+        //    asm volatile("nop");
+        //}
+
+        //while ((*i2s_status) & 0b10) {
+        //    asm volatile("nop");
+        //}
 	}
-	for (test = 0; test < 96; test++);
+
+    printf("Second time for debugging potentially\r\n");
+
+    for (int i = 0; i < story_bearly_wav_len; i++) {
+		*i2s_lenqueue = audio[i];
+        //while ((*i2s_status) & 0b10) {
+        //    asm volatile("nop");
+        //}
+
+        //while ((*i2s_status) & 0b10) {
+        //    asm volatile("nop");
+        //}
+	}
+
+    asm volatile("fence");
+    //for (int j = 0; j < story_bearly_wav_len; j += 32) {
+    //    write_I2S_tx_DMA(CHANNEL, j % 2, 32, story_bearly_wav + j , true, 100000);
+    //    
+    //}
 }
+
+void app_test(void)
+{
+	printf("Audio test start\r\n");
+
+	for (int i = 0; i < story_bearly_wav_len; i++) {
+		*i2s_lenqueue = audio[i];
+        // Debugging attempts
+        //while ((*i2s_status) & 0b10) {
+        //    asm volatile("nop");
+        //}
+        
+        //while ((*i2s_status) & 0b10) {
+        //    asm volatile("nop");
+        //}
+	}
+
+    printf("Audio test end\r\n");
+
+    for (int j = 0; j < story_bearly_wav_len; j += 32) {
+        write_I2S_tx_DMA(CHANNEL, 0, 32, story_bearly_wav + j , true, 10);
+        printf("Audio test DMA attempt\r\n");
+    }
+    
+    asm volatile("fence");
+}
+
 
 /**
   * @brief  The application entry point.
@@ -400,15 +424,16 @@ int main(int argc, char **argv) {
 
   /* Initialize all configured peripherals */  
   /* USER CODE BEGIN Init */
-  //app_init();
+  app_init();
   /* USER CODE END Init */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  rando(); //compare_dma();
-  //compare_conv();
+  app_test(); // manual_setting_test();
+  //conv_test(); //compare_dma();
+  //compare_dma();
   //simple_test();
-  app_main();
+  //app_main_test();
   return 0;
   /* USER CODE END WHILE */
 }

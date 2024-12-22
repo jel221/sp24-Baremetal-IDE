@@ -19,6 +19,11 @@ void read_conv_dma(int dma_num, int length, uint64_t* write_addr) {
     start_DMA(dma_num);
 }
 
+//void write_conv_dma_p(int dma_num, int length, uint64_t* data) {
+//    set_DMAP(dma_num, (uint64_t*) data, CONV_BASE, 8, 0, length/8, 3);
+//    start_DMA(dma_num);
+//}
+
 void read_conv_dma_p(int dma_num, int length, uint64_t* write_addr) {
     set_DMAP(dma_num, CONV_OUTPUT_ADDR, write_addr, READ_CHECK_ADDR, 0, 2, length/4, 3, 1000);
     start_DMA(dma_num);

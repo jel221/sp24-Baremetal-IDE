@@ -1,7 +1,14 @@
 #include "hal_I2S.h"
 #include  "hal_mmio.h"
 
-void set_I2S_params(int channel, int tx_en, int rx_en, int bitdepth_tx, int bitdepth_rx, int clkgen, int dacen, int ws_len) {
+void set_I2S_params(I2S_PARAMS* param) {
+    set_I2S_params_manual(param->channel, param->tx_en, param->rx_en, param->bitdepth_tx, param->bitdepth_rx, param->clkgen, param->dacen, param->ws_len);
+    set_I2S_clkdiv(param->channel, param->clkdiv);
+    set_I2S_fp(param->channel, param->tx_fp, param->rx_fp);
+    set_I2S_force_left(param->channel, param->tx_force_left, param->rx_force_left);
+}
+
+void set_I2S_params_manual(int channel, int tx_en, int rx_en, int bitdepth_tx, int bitdepth_rx, int clkgen, int dacen, int ws_len) {
     uint16_t params = reg_read16(I2S_CONFIG(channel));
     params = params | ((bitdepth_rx & 0x03) << 8);
     params = params | ((bitdepth_tx & 0x03) << 6);

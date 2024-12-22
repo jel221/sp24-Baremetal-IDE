@@ -13,6 +13,7 @@ extern "C" {
 #include "rocketcore.h"
 #include "hal_conv.h"
 #include "float16.h"
+#include "hal_I2S.h"
 
 
 // ================================
