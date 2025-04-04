@@ -34,6 +34,7 @@ extern "C" {
 #include <time.h>
 #include <stdbool.h>
 #include "hal_I2S.h"
+#include "hal_rcc.h"
 
 #include "riscv.h"
 

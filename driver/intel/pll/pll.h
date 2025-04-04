@@ -7,7 +7,6 @@ extern "C" {
 
 #include "metal.h"
 
-
 typedef struct {
   __IO uint32_t FZ_TIGHT_LOOPB;                         // 0x00
   __IO uint32_t FZ_LOCKFORCE;                           // 0x04
@@ -76,6 +75,7 @@ typedef struct {
   __IO uint32_t PLLFWEN_B;                              // 0x100
 } PLL_Type;
 
+void configure_pll(PLL_Type* pll, uint32_t ratio, uint32_t fraction);
 
 #ifdef __cplusplus
 }
